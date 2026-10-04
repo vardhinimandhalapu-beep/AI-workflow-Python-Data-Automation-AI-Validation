@@ -1,0 +1,96 @@
+evaluation/
+└── ai_output_evaluation.md
+# AI Presentation & Prompt Engineering Project
+
+## 📌 Project Overview
+
+This project explores how AI can be used to transform structured data and requirements into a clear, presentation-ready output.
+
+The project focuses on prompt design, data interpretation, AI output evaluation, and human review.
+
+## 🎯 Objective
+
+The main objective of this project is to understand how effective prompting and structured instructions can improve AI-generated outputs.
+
+It also focuses on checking whether AI-generated results are consistent with the given data and requirements.
+
+## 📊 Dataset
+
+The project uses the NovaFlow dataset to analyze changes in:
+
+- Users
+- Revenue
+- Retention
+- Support time
+- Crash rate
+- AI adoption
+
+## 🔍 Data Analysis
+
+The dataset was examined to identify changes, trends, and possible inconsistencies.
+
+The analysis was used as a basis for creating the presentation rather than relying only on AI-generated explanations.
+
+## 🤖 Prompt Engineering
+
+Prompts were structured to guide the AI toward:
+
+- Understanding the given data
+- Identifying important changes
+- Organizing information
+- Generating presentation-ready content
+- Following specific requirements
+
+## 🧪 AI Output Evaluation
+
+AI-generated output was reviewed instead of being accepted directly.
+
+The evaluation focused on:
+
+- Data accuracy
+- Logical consistency
+- Relevance
+- Missing information
+- Unnecessary claims
+- Alignment with the original requirements
+
+## 🔄 Workflow
+
+**Requirement → Data → Prompt → AI Output → Human Review → Validation → Final Output**
+
+## 🧠 What I Learned
+
+Through this project, I practiced:
+
+- Structured prompt design
+- Data interpretation
+- AI output evaluation
+- Critical thinking
+- Validation of AI-generated information
+- Technical communication
+
+## 🛠️ Technologies / Tools
+
+- AI-assisted development
+- Prompt Engineering
+- Data Analysis
+- Presentation Design
+
+## 📁 Project Files
+
+- `README.md` — Project documentation
+- Presentation file — Final presentation output
+- Dataset — Input data used for analysis
+- Evaluation notes — AI output review and validation
+
+## ⚠️ Note
+
+This is a student learning project created to explore AI-assisted analysis, prompt engineering, and output validation.
+
+It is not intended to represent a production-level AI system.
+
+## 👩‍💻 Author
+
+**Vardhini Mandhalapu**
+
+B.Tech — Cyber Security with Blockchain Technology & IoT
