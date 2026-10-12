@@ -1,5 +1,5 @@
-# NovaFlow project dependencies
-# This project uses Python standard library only.
-# No pip install is required.
-
-# Python 3.7+
+# NovaFlow dependencies
+# This project uses only Python standard library.
+# No external packages required.
+#
+# Python 3.8+

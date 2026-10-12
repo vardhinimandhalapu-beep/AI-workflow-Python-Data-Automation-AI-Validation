@@ -4,15 +4,22 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Local environment
+# Virtual environments
 .venv/
 venv/
+
+# Environment variables
 .env
+
+# IDE
+.vscode/
+.idea/
 
 # OS files
 .DS_Store
 Thumbs.db
 
 # Project outputs
-output/
+output/reports/*.json
+output/reports/*.html
 *.log
