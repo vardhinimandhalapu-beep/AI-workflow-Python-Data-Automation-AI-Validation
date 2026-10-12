@@ -1,0 +1,7 @@
+metric,q1,q2,unit
+users,82400,101600,users
+revenue,1.84,2.21,crore_inr
+retention,91.1,89.4,percent
+support_time,7.2,10.6,hours
+crash_rate,1.4,2.7,percent
+ai_assistant_adoption,24,38,percent
