@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command-line interface for NovaFlow analytics."""
+"""CLI for the NovaFlow Advanced Analytics project."""
 
 import sys
 from pathlib import Path
@@ -10,21 +10,21 @@ from main import App, DataAnalyzer, DataValidator
 def print_usage() -> None:
     print("\nNovaFlow CLI")
     print("Usage:")
-    print("  python cli.py validate <file.csv>")
-    print("  python cli.py analyze <file.csv>")
-    print("  python cli.py report <file.csv>")
+    print("  python cli.py validate <csv-file>")
+    print("  python cli.py analyze <csv-file>")
+    print("  python cli.py report <csv-file>")
+    print("  python cli.py serve <csv-file>")
     print("  python cli.py help")
 
 
-def validate_file(path_str: str) -> None:
-    path = Path(path_str)
+def validate_file(file_path: str) -> None:
+    path = Path(file_path)
     if not path.exists():
-        print(f"File not found: {path_str}")
+        print(f"File not found: {file_path}")
         return
 
     rows = DataValidator.load_csv(path)
     valid, errors = DataValidator.validate_dataset(rows)
-
     if valid:
         print("VALIDATION PASSED")
         print(f"Rows checked: {len(rows)}")
@@ -34,10 +34,10 @@ def validate_file(path_str: str) -> None:
             print(f"  - {error}")
 
 
-def analyze_file(path_str: str) -> None:
-    path = Path(path_str)
+def analyze_file(file_path: str) -> None:
+    path = Path(file_path)
     if not path.exists():
-        print(f"File not found: {path_str}")
+        print(f"File not found: {file_path}")
         return
 
     rows = DataValidator.load_csv(path)
@@ -52,38 +52,38 @@ def analyze_file(path_str: str) -> None:
     summary = DataAnalyzer.calculate_summary(metrics)
 
     print("\nSummary")
-    print(f"Total Metrics: {summary.get('total_metrics', 0)}")
+    print(f"Total metrics: {summary.get('total_metrics', 0)}")
     print(f"Improving: {summary.get('up_trends', 0)}")
     print(f"Declining: {summary.get('down_trends', 0)}")
-    print(f"Average Change: {summary.get('avg_percentage_change', 0):+.2f}%")
+    print(f"Average change: {summary.get('avg_percentage_change', 0):+.2f}%")
 
     for metric in metrics:
         pct = metric.percentage_change()
         print(f"- {metric.name}: {pct:+.2f}% ({metric.trend()})")
 
 
-def generate_report(path_str: str) -> None:
+def generate_report(file_path: str) -> None:
     app = App()
-    data_path = Path(path_str)
-    if not data_path.exists():
-        print(f"File not found: {path_str}")
+    path = Path(file_path)
+    if not path.exists():
+        print(f"File not found: {file_path}")
         return
 
-    result = app.run_analysis(data_path)
-    metrics = result["metrics"]
-    summary = result["summary"]
+    reports = app.generate_reports(path)
+    print(f"JSON report: {reports['json']}")
+    print(f"HTML dashboard: {reports['html']}")
 
-    output_dir = app.output_dir
-    output_dir.mkdir(exist_ok=True)
-    timestamp = Path("_" + str(__import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")))
-    json_path = output_dir / f"report{timestamp}.json"
-    html_path = output_dir / f"report{timestamp}.html"
 
-    app.export_json(metrics, json_path)
-    app.export_html(metrics, summary, html_path)
+def serve_dashboard(file_path: str) -> None:
+    app = App()
+    path = Path(file_path)
+    if not path.exists():
+        print(f"File not found: {file_path}")
+        return
 
-    print(f"JSON report written to: {json_path}")
-    print(f"HTML report written to: {html_path}")
+    reports = app.generate_reports(path)
+    html_path = Path(reports["html"])
+    app.serve_report(html_path)
 
 
 if __name__ == "__main__":
@@ -110,6 +110,11 @@ if __name__ == "__main__":
             print("Please provide a CSV file path.")
         else:
             generate_report(sys.argv[2])
+    elif command == "serve":
+        if len(sys.argv) < 3:
+            print("Please provide a CSV file path.")
+        else:
+            serve_dashboard(sys.argv[2])
     else:
         print(f"Unknown command: {command}")
         print_usage()
