@@ -1,87 +1,157 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NovaFlow Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
-</head>
-<body>
-  <div class="container">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">Business Intelligence</p>
-        <h1>NovaFlow Quarterly Performance</h1>
-      </div>
-      <div class="badge-group">
-        <button class="primary-btn" onclick="location.href='/export/json'">Download JSON</button>
-        <button class="secondary-btn" onclick="location.href='/export/excel'">Download Excel</button>
-      </div>
-    </header>
+from flask import Flask, jsonify, render_template, request, send_file
+from pathlib import Path
 
-    <section class="cards">
-      <div class="card">
-        <span class="label">Total Metrics</span>
-        <strong>{{ summary.total_metrics }}</strong>
-      </div>
-      <div class="card success">
-        <span class="label">Improving</span>
-        <strong>{{ summary.up_trends }}</strong>
-      </div>
-      <div class="card danger">
-        <span class="label">Declining</span>
-        <strong>{{ summary.down_trends }}</strong>
-      </div>
-      <div class="card neutral">
-        <span class="label">Avg Change</span>
-        <strong>{{ "%.2f"|format(summary.avg_percentage_change) }}%</strong>
-      </div>
-    </section>
+from openpyxl import Workbook
 
-    <section class="panel">
-      <h2>Trend Overview</h2>
-      <div class="chart-area">
-        {% for metric in metrics %}
-          {% set pct = metric.percentage_change() if metric.percentage_change() is not none else 0.0 %}
-          {% set abs_val = pct|abs %}
-          <div class="bar-row">
-            <div class="bar-label">{{ metric.name }}</div>
-            <div class="bar-track">
-              <div class="bar-fill {{ metric.trend()|lower }}" style="width: {{ (abs_val / 100) * 100 if abs_val <= 100 else 100 }}%;"></div>
-            </div>
-            <div class="bar-value">{{ "%.2f"|format(pct) }}%</div>
-          </div>
-        {% endfor %}
-      </div>
-    </section>
+from src.main import App, DataAnalyzer, DataValidator
 
-    <section class="panel">
-      <h2>Metric Detail</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Q1</th>
-            <th>Q2</th>
-            <th>Abs Change</th>
-            <th>% Change</th>
-            <th>Trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for metric in metrics %}
-          <tr>
-            <td>{{ metric.name }}</td>
-            <td>{{ "%.2f"|format(metric.q1_value) }}</td>
-            <td>{{ "%.2f"|format(metric.q2_value) }}</td>
-            <td>{{ "%+.2f"|format(metric.absolute_change()) }}</td>
-            <td>{{ "%+.2f"|format(metric.percentage_change() if metric.percentage_change() is not none else 0.0) }}%</td>
-            <td><span class="trend-badge {{ metric.trend()|lower }}">{{ metric.trend() }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-  </div>
-</body>
-</html>
+app = Flask(__name__, template_folder="templates", static_folder="static")
+
+
+def generate_insights(metrics):
+    insights = []
+    for metric in metrics:
+        pct = metric.percentage_change()
+        if pct is None:
+            continue
+        if metric.trend() == "UP":
+            insights.append({
+                "title": f"{metric.name.title()} is growing",
+                "detail": f"{metric.name} increased by {pct:+.2f}% from Q1 to Q2, signaling strong momentum.",
+                "tone": "positive",
+            })
+        elif metric.trend() == "DOWN":
+            insights.append({
+                "title": f"{metric.name.title()} needs attention",
+                "detail": f"{metric.name} declined by {pct:+.2f}% from Q1 to Q2 and should be monitored closely.",
+                "tone": "warning",
+            })
+        else:
+            insights.append({
+                "title": f"{metric.name.title()} is stable",
+                "detail": f"{metric.name} remained flat, showing stable behavior across the two quarters.",
+                "tone": "neutral",
+            })
+    return insights[:5]
+
+
+def load_analysis(csv_path: str = "data/metrics.csv"):
+    path = Path(csv_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset not found: {csv_path}")
+
+    rows = DataValidator.load_csv(path)
+    valid, errors = DataValidator.validate_dataset(rows)
+    if not valid:
+        raise ValueError("\n".join(errors))
+
+    metrics = DataAnalyzer.load_metrics(rows)
+    summary = DataAnalyzer.calculate_summary(metrics)
+    critical = DataAnalyzer.identify_critical_metrics(metrics)
+    return metrics, summary, critical
+
+
+@app.route("/")
+def dashboard():
+    metrics, summary, critical = load_analysis()
+    insight_list = generate_insights(metrics)
+    return render_template(
+        "dashboard.html",
+        metrics=metrics,
+        summary=summary,
+        critical=critical,
+        insights=insight_list,
+        generated_at="Now"
+    )
+
+
+@app.route("/api/summary")
+def api_summary():
+    metrics, summary, critical = load_analysis()
+    return jsonify({
+        "summary": summary,
+        "metrics": [
+            {
+                "name": m.name,
+                "q1": m.q1_value,
+                "q2": m.q2_value,
+                "unit": m.unit,
+                "absolute_change": m.absolute_change(),
+                "percentage_change": m.percentage_change(),
+                "trend": m.trend(),
+            }
+            for m in metrics
+        ],
+        "critical": [m.name for m in critical],
+        "insights": generate_insights(metrics)
+    })
+
+
+@app.route("/api/insights")
+def api_insights():
+    metrics, summary, critical = load_analysis()
+    return jsonify({"insights": generate_insights(metrics)})
+
+
+@app.route("/export/json")
+def export_json():
+    metrics, summary, critical = load_analysis()
+    output_dir = Path("output/reports")
+    output_dir.mkdir(exist_ok=True, parents=True)
+    report_path = output_dir / "novaflow_export.json"
+
+    payload = [
+        {
+            "name": m.name,
+            "q1": m.q1_value,
+            "q2": m.q2_value,
+            "unit": m.unit,
+            "absolute_change": m.absolute_change(),
+            "percentage_change": m.percentage_change(),
+            "trend": m.trend(),
+        }
+        for m in metrics
+    ]
+
+    with report_path.open("w", encoding="utf-8") as file:
+        import json
+        json.dump(payload, file, indent=2)
+
+    return send_file(report_path, as_attachment=True, download_name="novaflow_export.json")
+
+
+@app.route("/export/excel")
+def export_excel():
+    metrics, summary, critical = load_analysis()
+    output_dir = Path("output/reports")
+    output_dir.mkdir(exist_ok=True, parents=True)
+    report_path = output_dir / "novaflow_export.xlsx"
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "NovaFlow Metrics"
+    sheet.append(["Metric", "Q1", "Q2", "Absolute Change", "Percentage Change", "Trend"])
+
+    for metric in metrics:
+        sheet.append([
+            metric.name,
+            metric.q1_value,
+            metric.q2_value,
+            metric.absolute_change(),
+            metric.percentage_change(),
+            metric.trend(),
+        ])
+
+    workbook.save(report_path)
+    return send_file(report_path, as_attachment=True, download_name="novaflow_export.xlsx")
+
+
+@app.route("/health")
+def health_check():
+    return jsonify({"status": "ok", "service": "NovaFlow Insight Studio"})
+
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=True)
+
+
