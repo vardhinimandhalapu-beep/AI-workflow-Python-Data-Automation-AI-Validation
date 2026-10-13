@@ -1,5 +1,3 @@
-evaluation/
-└── ai_output_evaluation.md
 # AI Presentation & Prompt Engineering Project
 
 ## 📌 Project Overview

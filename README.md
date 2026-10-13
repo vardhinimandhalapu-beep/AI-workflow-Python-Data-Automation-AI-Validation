@@ -1,354 +1,128 @@
-* {
-  box-sizing: border-box;
-}
+# NovaFlow
 
-body {
-  margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: radial-gradient(circle at top, #eff6ff 0%, #f8fafc 35%, #eef2ff 100%);
-  color: #0f172a;
-}
+NovaFlow validates a quarterly metrics CSV, calculates deterministic comparisons, and provides a local dashboard, CLI, and downloadable reports. It is a student portfolio MVP, not a deployed production service.
 
-.page-shell {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 32px 22px 60px;
-}
+## Features
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
-  border-radius: 22px;
-  padding: 24px 28px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
-}
+- CSV schema and value validation with row-level diagnostics.
+- Absolute and percentage changes, arithmetic trend direction, summary counts, and threshold alerts.
+- Local Flask dashboard and JSON API.
+- JSON and Excel downloads, with formula-like text neutralized in Excel exports.
+- CLI validation, analysis, and report generation.
+- Optional, user-triggered OpenAI explanation of metric changes. Core functionality does not depend on AI.
 
-.brand-wrap {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
+## Requirements and setup
 
-.brand-mark {
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: white;
-}
+Python 3.10 or newer is required. Runtime dependencies are pinned in `requirements.txt`; pytest is included in development requirements.
 
-.eyebrow,
-.kicker {
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
-  opacity: 0.8;
-}
+### Windows PowerShell
 
-h1 {
-  margin: 0;
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
-  color: white;
-}
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
 
-.menu-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+### Linux or macOS
 
-.primary-btn,
-.secondary-btn,
-.ghost-btn {
-  border-radius: 12px;
-  padding: 11px 18px;
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
+```bash
+python3.10 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
 
-.primary-btn {
-  background: white;
-  color: #0f172a;
-}
+## Run the application
 
-.secondary-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
+From the repository root:
 
-.ghost-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
+```bash
+python app.py
+```
 
-.primary-btn:hover,
-.secondary-btn:hover,
-.ghost-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
-}
+Open http://127.0.0.1:5000. It binds to localhost and reads `data/metrics.csv`. Set `PORT` to change the port.
 
-.content-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 24px;
-  margin-top: 24px;
-}
+CLI commands:
 
-.panel {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 22px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
-  padding: 24px;
-}
+```bash
+python src/cli.py validate data/metrics.csv
+python src/cli.py analyze data/metrics.csv
+python src/cli.py report data/metrics.csv
+python src/cli.py serve data/metrics.csv
+```
 
-.hero-panel {
-  min-height: 170px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  background: linear-gradient(135deg, rgba(14, 116, 144, 0.10), rgba(37, 99, 235, 0.18));
-}
+The report command writes timestamped JSON and HTML files to `output/reports/`. Invalid input and file errors produce a non-zero CLI exit status.
 
-.hero-panel h2 {
-  margin: 0;
-  font-size: clamp(1.5rem, 2vw, 2.1rem);
-  line-height: 1.25;
-}
+## CSV schema and calculations
 
-.hero-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #475569;
-  font-size: 0.85rem;
-  flex-wrap: wrap;
-}
+The required headers are `metric,q1,q2,unit`. Additional columns are accepted. Header names must match the required names exactly. Data rows must have the required values; metric names are unique case-insensitively, metric names and units cannot be blank, and numeric values must be finite. Empty/header-only files, malformed CSV, invalid UTF-8, duplicate headers, and files larger than 10 MiB are rejected. Zero and negative measurements are allowed.
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 18px;
-  grid-column: 1 / -1;
-}
+```csv
+metric,q1,q2,unit
+users,82400,101600,users
+revenue,1.84,2.21,crore_inr
+retention,91.1,89.4,percent
+```
 
-.card {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 18px;
-  padding: 18px 18px 16px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
-}
+Absolute change is Q2 minus Q1. Percentage change is undefined when Q1 is zero; undefined values are excluded from the average. “UP” and “DOWN” describe arithmetic direction only, not whether a change is desirable. The default alert threshold is an absolute percentage change of at least 10%.
 
-.card .label {
-  display: block;
-  color: #64748b;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+## Web routes
 
-.card strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 2.1rem;
-  line-height: 1.1;
-}
+- `/` — dashboard.
+- `/api/summary` — JSON summary, metric values, calculations, and threshold alerts.
+- `/api/ai-insights` — POST endpoint used by the explicit dashboard action; requires JSON `{"confirm": true}`.
+- `/export/json` — downloadable JSON.
+- `/export/excel` — downloadable XLSX workbook.
+- `/health` — local health response.
 
-.card small {
-  display: block;
-  color: #475569;
-  margin-top: 6px;
-}
+## Optional AI explanations
 
-.accent-blue { border-top: 4px solid #2563eb; }
-.accent-green { border-top: 4px solid #16a34a; }
-.accent-red { border-top: 4px solid #dc2626; }
-.accent-gold { border-top: 4px solid #d97706; }
+AI is disabled by default. The dashboard never contacts a model on page load. When enabled, a user must press **Generate AI explanation**. That action sends only the validated metric names, units, Q1/Q2 values, and calculated changes—not the CSV file—to the OpenAI API configured for the project. Do not enable this for sensitive or confidential metrics; labels and values leave the local machine and are subject to the configured provider's terms and data handling.
 
-.insights-panel,
-.chart-panel,
-.table-panel {
-  grid-column: span 1;
-}
+Set the credentials and model name in your local process environment. The model must be one available to your OpenAI account; NovaFlow does not choose or invent a default.
 
-.section-head {
-  margin-bottom: 16px;
-}
+Windows PowerShell:
 
-.section-head h3 {
-  margin: 0;
-  font-size: 1.35rem;
-}
+```powershell
+$env:NOVAFLOW_AI_ENABLED = "true"
+$env:OPENAI_API_KEY = "<your API key>"
+$env:OPENAI_MODEL = "<model available to your account>"
+python app.py
+```
 
-.insight-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+Linux or macOS:
 
-.insight-item {
-  display: flex;
-  gap: 14px;
-  padding: 14px 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(248, 250, 252, 0.9);
-}
+```bash
+export NOVAFLOW_AI_ENABLED=true
+export OPENAI_API_KEY="<your API key>"
+export OPENAI_MODEL="<model available to your account>"
+python app.py
+```
 
-.insight-item.positive {
-  border-left: 4px solid #16a34a;
-}
+Keep keys private. Do not paste them into source files, commits, screenshots, or issue reports. `.env` is ignored by Git; the app does not automatically load dotenv files. The API request uses a 20-second timeout, no automatic retries, bounded metric count/output, and `store=False`. Provider errors are returned as safe messages. If AI is off, unconfigured, or unavailable, the CSV validation, calculations, dashboard, CLI, and exports remain usable. AI text is a generated interpretation, may be inaccurate, and is not financial, medical, or authoritative business advice. The deterministic values shown by NovaFlow remain the source of truth.
 
-.insight-item.warning {
-  border-left: 4px solid #dc2626;
-}
+## Architecture and checks
 
-.insight-item.neutral {
-  border-left: 4px solid #64748b;
-}
+- `src/main.py` — CSV validation, calculations, reports, and workflow orchestration.
+- `src/cli.py` — command line interface.
+- `src/ai_insights.py` — bounded optional OpenAI integration.
+- `app.py` — Flask routes and downloads.
+- `templates/dashboard.html` — autoescaped dashboard.
+- `data/metrics.csv` — illustrative sample values, not customer data.
+- `tests/` — automated regression tests.
 
-.insight-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.7);
-}
+Run all tests and the sample CLI workflow:
 
-.insight-item h4 {
-  margin: 0 0 6px;
-  font-size: 1rem;
-}
+```bash
+python -m pytest -q
+python src/cli.py validate data/metrics.csv
+python src/cli.py analyze data/metrics.csv
+python src/cli.py report data/metrics.csv
+```
 
-.insight-item p {
-  margin: 0;
-  color: #475569;
-  line-height: 1.5;
-}
+GitHub Actions tests Python 3.10 and 3.12 on Ubuntu and Windows. AI tests use a mocked provider; a real API key is not required. A live provider request and browser-based visual review are not part of automated verification.
 
-.chart-area {
-  margin-top: 10px;
-}
+## Security and project limits
 
-.bar-row {
-  display: grid;
-  grid-template-columns: 130px 1fr 80px;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.bar-label {
-  font-weight: 700;
-  color: #334155;
-}
-
-.bar-track {
-  width: 100%;
-  height: 14px;
-  background: #e2e8f0;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 999px;
-}
-
-.bar-fill.up { background: linear-gradient(90deg, #22c55e, #16a34a); }
-.bar-fill.down { background: linear-gradient(90deg, #f87171, #dc2626); }
-.bar-fill.flat { background: linear-gradient(90deg, #94a3b8, #64748b); }
-
-.bar-value {
-  text-align: right;
-  font-weight: 700;
-  color: #334155;
-}
-
-.table-panel {
-  grid-column: 1 / -1;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-
-th, td {
-  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
-  padding: 12px 10px;
-  text-align: left;
-}
-
-thead th {
-  background: rgba(248, 250, 252, 0.85);
-  color: #475569;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-}
-
-.trend-badge {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.trend-badge.up { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
-.trend-badge.down { background: rgba(220, 38, 38, 0.12); color: #dc2626; }
-.trend-badge.flat { background: rgba(100, 116, 139, 0.12); color: #475569; }
-
-@media (max-width: 900px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .cards {
-    grid-template-columns: repeat(2, minmax(150px, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .menu-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .cards {
-    grid-template-columns: 1fr;
-  }
-
-  .bar-row {
-    grid-template-columns: 1fr;
-  }
-}
+The app is intended for local use and binds to `127.0.0.1`; it has no authentication, upload feature, deployment configuration, or production monitoring. HTML templates escape metric labels, generated HTML reports escape text, and untrusted Excel labels/units are neutralized. Review source data and exports before sharing. The project has no persistence layer or business-aware interpretation of metric direction.
