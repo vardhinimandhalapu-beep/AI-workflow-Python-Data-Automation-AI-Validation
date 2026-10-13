@@ -4,10 +4,10 @@ import os
 from io import BytesIO
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, send_file
+from flask import Flask, jsonify, render_template, request, send_file
 from openpyxl import Workbook
 
-from src.main import App, DataAnalyzer, DataValidator
+from datetime import datetime\n\nfrom src.ai_insights import AIInsightError, generate_ai_insight, is_ai_enabled\nfrom src.main import DataAnalyzer, DataValidator
 
 PROJECT_DIR = Path(__file__).resolve().parent
 app = Flask(
@@ -67,7 +67,7 @@ def dashboard():
         metrics=metrics,
         summary=summary,
         critical=critical,
-        generated_at=__import__("datetime").datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
+        generated_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),\n        ai_enabled=is_ai_enabled(),
     )
 
 
