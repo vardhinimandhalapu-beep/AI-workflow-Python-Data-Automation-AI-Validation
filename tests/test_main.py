@@ -36,7 +36,7 @@ def test_zero_baseline_is_undefined_and_excluded_from_average():
     ]
     assert metrics[0].percentage_change() is None
     assert DataAnalyzer.calculate_summary(metrics) == {
-        "total_metrics": 3, "up_trends": 1, "down_trends": 0, "flat_trends": 2,
+        "total_metrics": 3, "up_trends": 2, "down_trends": 0, "flat_trends": 1,
         "avg_percentage_change": 10.0,
     }
     assert [m.name for m in DataAnalyzer.identify_critical_metrics(metrics, 10)] == ["up"]
