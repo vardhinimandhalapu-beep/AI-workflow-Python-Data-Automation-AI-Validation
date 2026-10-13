@@ -1,62 +1,24 @@
-# System Architecture
+# Architecture
 
-## Overview
+NovaFlow is a local CSV analytics MVP with one Python core used by both its CLI and Flask app.
 
-NovaFlow is a modular analytics system designed for quarterly business metric analysis. The architecture follows a clean, layered approach with separation of concerns.
-
-## Components
-
-### 1. Data Layer (`DataValidator`)
-- CSV file loading
-- Schema validation
-- Data type checking
-- Error reporting
-
-### 2. Analysis Layer (`DataAnalyzer`)
-- Metric loading and transformation
-- Summary statistics calculation
-- Trend detection
-- Critical metric identification
-
-### 3. Report Layer (`ReportGenerator`)
-- SVG chart generation
-- HTML dashboard rendering
-- JSON export
-- Multi-format output
-
-### 4. Application Layer (`App`)
-- Workflow orchestration
-- Report generation
-- Dashboard serving
-- Error handling
-
-## Data Flow
+## Data flow
 
 ```
-CSV File
-   ↓
-DataValidator (validate)
-   ↓
-DataAnalyzer (analyze)
-   ↓
-ReportGenerator (render)
-   ↓
-Output (JSON/HTML)
+CSV file
+  -> DataValidator.load_csv
+  -> DataValidator.validate_dataset
+  -> DataAnalyzer
+  -> Flask dashboard / JSON API / JSON and Excel downloads
+                    \-> CLI analysis and generated HTML/JSON reports
 ```
 
-## Module Structure
+## Responsibilities
 
-```
-src/
-├── main.py              # Core analytics engine
-├── cli.py               # Command-line interface
-└── __init__.py
-```
+- `src/main.py` owns CSV validation, metric calculations, and standalone report generation.
+- `src/cli.py` exposes validation, analysis, report, and local serving commands.
+- `app.py` exposes the local Flask dashboard, API, health, and export routes.
+- `templates/dashboard.html` is an autoescaped Jinja template.
+- `tests/` covers core calculations, validation, report generation, and Flask routes.
 
-## Design Principles
-
-1. **No External Dependencies** - Pure Python standard library only
-2. **Modularity** - Each component has a single responsibility
-3. **Testability** - Clean interfaces for unit testing
-4. **Scalability** - Easy to extend with new analysis features
-5. **Error Handling** - Comprehensive validation and reporting
+The root `main.py` is a compatibility launcher that delegates to `src/main.py`. Runtime dependencies are Flask and openpyxl; the standard library handles CSV and JSON. The current implementation does not call an AI model or external service.
