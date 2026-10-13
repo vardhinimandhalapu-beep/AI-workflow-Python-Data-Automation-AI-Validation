@@ -29,6 +29,14 @@ def load_analysis(csv_path=None):
     return metrics, DataAnalyzer.calculate_summary(metrics), DataAnalyzer.identify_critical_metrics(metrics)
 
 
+def _safe_spreadsheet_text(value):
+    """Prefix formula-like untrusted text so Excel treats it as a label."""
+    text = str(value)
+    if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\\t", "\\r")):
+        return "'" + text
+    return text
+
+
 def _metric_payload(metric):
     return {
         "name": metric.name,
