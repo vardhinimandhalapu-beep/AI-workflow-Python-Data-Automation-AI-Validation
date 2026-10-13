@@ -60,6 +60,38 @@
     <h2>Exports</h2><a href="{{ url_for('export_json') }}">Download JSON</a><a href="{{ url_for('export_excel') }}">Download Excel</a>
     <a href="{{ url_for('api_summary') }}">View summary API</a>
   </nav>
+  <section class="panel" aria-labelledby="ai-heading">
+    <h2 id="ai-heading">Optional AI explanation</h2>
+    <p>AI is used only when you press the button. The request sends metric names, units, Q1/Q2 values, and calculated changes to the configured OpenAI API. Do not enable it for sensitive data.</p>
+    {% if ai_enabled %}
+      <button id="generate-ai" type="button">Generate AI explanation</button>
+      <p id="ai-status" role="status" aria-live="polite"></p>
+      <script>
+        document.getElementById("generate-ai").addEventListener("click", async function () {
+          const status = document.getElementById("ai-status");
+          this.disabled = true;
+          status.textContent = "Requesting an explanation…";
+          try {
+            const response = await fetch("{{ url_for('api_ai_insights') }}", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({confirm: true})
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "AI request failed.");
+            status.textContent = result.insight + " — AI-generated; verify against the measured values.";
+          } catch (error) {
+            status.textContent = error.message || "AI request failed. Check configuration and try again.";
+          } finally {
+            this.disabled = false;
+          }
+        });
+      </script>
+    {% else %}
+      <p>AI insights are disabled. To enable them, configure the optional AI environment variables; see the README.</p>
+    {% endif %}
+    <p class="note">AI output is a generated interpretation, may be inaccurate, and does not replace the measured values or calculations above.</p>
+  </section>
 </main>
 </body>
 </html>
