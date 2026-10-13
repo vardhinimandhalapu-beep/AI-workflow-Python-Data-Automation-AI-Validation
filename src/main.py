@@ -152,7 +152,7 @@ class ReportGenerator:
             )
         average = summary.get("avg_percentage_change")
         average_label = "N/A" if average is None else "{:+.2f}%".format(average)
-        return """<!doctype html>
+        report = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NovaFlow report</title><style>
 body{font:16px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#172033;background:#f7f9fc}
@@ -163,7 +163,13 @@ th{background:#f1f5fb}small{color:#526176}
 <p>{} metrics · average defined percentage change: {}</p></header><section class="panel"><h2>Metrics</h2>
 <table><thead><tr><th>Metric</th><th>Q1</th><th>Q2</th><th>Change</th><th>Change %</th><th>Unit</th><th>Trend</th></tr></thead>
 <tbody>{}</tbody></table></section><small>Generated locally from the supplied CSV. Trend is arithmetic direction, not a judgment of business impact.</small>
-</body></html>""".format(summary.get("total_metrics", 0), average_label, "".join(rows))
+</body></html>"""
+        return (report.replace("{} metrics".format(summary.get("total_metrics", 0)), "__METRIC_COUNT__ metrics")
+                .replace(average_label, "__AVERAGE__")
+                .replace("{}".format("".join(rows)), "__ROWS__")
+                .replace("__METRIC_COUNT__", str(summary.get("total_metrics", 0)))
+                .replace("__AVERAGE__", average_label)
+                .replace("__ROWS__", "".join(rows)))
 
     @staticmethod
     def export_dashboard(metrics: List[Metric], summary: Dict[str, Any], output_path: Path) -> None:
