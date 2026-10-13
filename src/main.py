@@ -56,6 +56,8 @@ class DataValidator:
                 headers = reader.fieldnames or []
                 if not headers:
                     return []
+                if any(not header or not header.strip() for header in headers):
+                    raise ValueError("CSV contains a blank column name.")
                 if len(headers) != len(set(headers)):
                     raise ValueError("CSV contains duplicate column names.")
                 missing = DataValidator.REQUIRED_FIELDS - set(headers)
