@@ -111,7 +111,7 @@ def test_csv_size_limit_accepts_exact_boundary_and_rejects_one_byte_over(tmp_pat
     assert len(rows) == 1
     assert DataValidator.validate_dataset(rows)[0]
 
-    path.write_bytes(prefix + b"x")
+    path.write_bytes(prefix + b"\\n" * padding_size + b"x")
     with pytest.raises(ValueError, match="10 MiB"):
         DataValidator.load_csv(path)
 
