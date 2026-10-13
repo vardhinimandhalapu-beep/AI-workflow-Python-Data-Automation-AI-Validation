@@ -1,132 +1,68 @@
 #!/usr/bin/env python3
-"""CLI for NovaFlow Analytics.
-
-Command-line interface for data validation, analysis, and reporting.
-"""
-
+"""Command-line workflows for NovaFlow."""
+import argparse
+import json
 import sys
 from pathlib import Path
 
-from main import App, DataAnalyzer, DataValidator
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
+from src.main import App, DataValidator  # noqa: E402
 
 
-def print_usage() -> None:
-    """Print CLI usage information."""
-    print("\nNovaFlow CLI")
-    print("="*50)
-    print("Usage:")
-    print("  python cli.py validate <csv-file>   Validate data")
-    print("  python cli.py analyze <csv-file>    Run analysis")
-    print("  python cli.py report <csv-file>     Generate reports")
-    print("  python cli.py serve <csv-file>      View in browser")
-    print("  python cli.py help                  Show this help")
-    print()
+def build_parser():
+    parser = argparse.ArgumentParser(description="Validate and analyze NovaFlow metric CSV files.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name, help_text in (
+        ("validate", "Validate a CSV file"),
+        ("analyze", "Analyze a CSV file and print a JSON summary"),
+        ("report", "Generate JSON and HTML reports"),
+        ("serve", "Generate a report and open it locally"),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("csv_file", type=Path, help="Path to a CSV using metric,q1,q2,unit columns")
+    return parser
 
 
-def validate_file(file_path: str) -> None:
-    """Validate a CSV file."""
-    path = Path(file_path)
-    if not path.exists():
-        print(f"File not found: {file_path}")
-        return
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    app = App(PROJECT_DIR)
+    try:
+        if args.command == "validate":
+            rows = DataValidator.load_csv(args.csv_file)
+            valid, errors = DataValidator.validate_dataset(rows)
+            if not valid:
+                for error in errors:
+                    print(error, file=sys.stderr)
+                return 1
+            print("Validation passed: {} data rows.".format(len(rows)))
+            return 0
 
-    rows = DataValidator.load_csv(path)
-    valid, errors = DataValidator.validate_dataset(rows)
-    if valid:
-        print("✓ VALIDATION PASSED")
-        print(f"  Rows checked: {len(rows)}")
-    else:
-        print("✗ VALIDATION FAILED")
-        for error in errors:
-            print(f"  - {error}")
-
-
-def analyze_file(file_path: str) -> None:
-    """Analyze a CSV file."""
-    path = Path(file_path)
-    if not path.exists():
-        print(f"File not found: {file_path}")
-        return
-
-    rows = DataValidator.load_csv(path)
-    valid, errors = DataValidator.validate_dataset(rows)
-    if not valid:
-        print("✗ VALIDATION FAILED")
-        for error in errors:
-            print(f"  - {error}")
-        return
-
-    metrics = DataAnalyzer.load_metrics(rows)
-    summary = DataAnalyzer.calculate_summary(metrics)
-
-    print("\nSummary")
-    print(f"Total metrics: {summary.get('total_metrics', 0)}")
-    print(f"Improving: {summary.get('up_trends', 0)}")
-    print(f"Declining: {summary.get('down_trends', 0)}")
-    print(f"Average change: {summary.get('avg_percentage_change', 0):+.2f}%")
-
-    print("\nMetrics")
-    for metric in metrics:
-        pct = metric.percentage_change()
-        print(f"  {metric.name:<25} {pct:+8.2f}% ({metric.trend()})")
-
-
-def generate_report(file_path: str) -> None:
-    """Generate reports for a CSV file."""
-    app = App()
-    path = Path(file_path)
-    if not path.exists():
-        print(f"File not found: {file_path}")
-        return
-
-    reports = app.generate_reports(path)
-    print("\n✓ Reports generated")
-    print(f"  JSON: {reports['json']}")
-    print(f"  HTML: {reports['html']}")
-
-
-def serve_dashboard(file_path: str) -> None:
-    """Generate and serve dashboard in browser."""
-    app = App()
-    path = Path(file_path)
-    if not path.exists():
-        print(f"File not found: {file_path}")
-        return
-
-    reports = app.generate_reports(path)
-    html_path = Path(reports["html"])
-    app.serve_report(html_path)
+        analysis = app.analyze_data(args.csv_file)
+        if args.command == "analyze":
+            summary = analysis["summary"]
+            payload = {
+                "summary": summary,
+                "metrics": [{
+                    "name": metric.name, "q1": metric.q1_value, "q2": metric.q2_value,
+                    "unit": metric.unit, "absolute_change": metric.absolute_change(),
+                    "percentage_change": metric.percentage_change(), "trend": metric.trend(),
+                } for metric in analysis["metrics"]],
+                "critical": [metric.name for metric in analysis["critical"]],
+            }
+            print(json.dumps(payload, indent=2, allow_nan=False))
+        elif args.command in ("report", "serve"):
+            reports = app.generate_reports(args.csv_file)
+            print(json.dumps(reports, indent=2))
+            if args.command == "serve":
+                app.serve_report(Path(reports["html"]))
+        return 0
+    except (OSError, ValueError) as exc:
+        print("Error: {}".format(exc), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print_usage()
-        sys.exit(0)
-
-    command = sys.argv[1].lower()
-
-    if command == "help":
-        print_usage()
-    elif command == "validate":
-        if len(sys.argv) < 3:
-            print("Please provide a CSV file path.")
-        else:
-            validate_file(sys.argv[2])
-    elif command == "analyze":
-        if len(sys.argv) < 3:
-            print("Please provide a CSV file path.")
-        else:
-            analyze_file(sys.argv[2])
-    elif command == "report":
-        if len(sys.argv) < 3:
-            print("Please provide a CSV file path.")
-        else:
-            generate_report(sys.argv[2])
-    elif command == "serve":
-        if len(sys.argv) < 3:
-            print("Please provide a CSV file path.")
-        else:
-            serve_dashboard(sys.argv[2])
-    else:
-        print(f"Unknown command: {command}")
-        print_usage()
+    sys.exit(main())
