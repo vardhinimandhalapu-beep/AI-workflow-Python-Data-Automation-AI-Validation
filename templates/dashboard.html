@@ -1,157 +1,65 @@
-from flask import Flask, jsonify, render_template, request, send_file
-from pathlib import Path
-
-from openpyxl import Workbook
-
-from src.main import App, DataAnalyzer, DataValidator
-
-app = Flask(__name__, template_folder="templates", static_folder="static")
-
-
-def generate_insights(metrics):
-    insights = []
-    for metric in metrics:
-        pct = metric.percentage_change()
-        if pct is None:
-            continue
-        if metric.trend() == "UP":
-            insights.append({
-                "title": f"{metric.name.title()} is growing",
-                "detail": f"{metric.name} increased by {pct:+.2f}% from Q1 to Q2, signaling strong momentum.",
-                "tone": "positive",
-            })
-        elif metric.trend() == "DOWN":
-            insights.append({
-                "title": f"{metric.name.title()} needs attention",
-                "detail": f"{metric.name} declined by {pct:+.2f}% from Q1 to Q2 and should be monitored closely.",
-                "tone": "warning",
-            })
-        else:
-            insights.append({
-                "title": f"{metric.name.title()} is stable",
-                "detail": f"{metric.name} remained flat, showing stable behavior across the two quarters.",
-                "tone": "neutral",
-            })
-    return insights[:5]
-
-
-def load_analysis(csv_path: str = "data/metrics.csv"):
-    path = Path(csv_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Dataset not found: {csv_path}")
-
-    rows = DataValidator.load_csv(path)
-    valid, errors = DataValidator.validate_dataset(rows)
-    if not valid:
-        raise ValueError("\n".join(errors))
-
-    metrics = DataAnalyzer.load_metrics(rows)
-    summary = DataAnalyzer.calculate_summary(metrics)
-    critical = DataAnalyzer.identify_critical_metrics(metrics)
-    return metrics, summary, critical
-
-
-@app.route("/")
-def dashboard():
-    metrics, summary, critical = load_analysis()
-    insight_list = generate_insights(metrics)
-    return render_template(
-        "dashboard.html",
-        metrics=metrics,
-        summary=summary,
-        critical=critical,
-        insights=insight_list,
-        generated_at="Now"
-    )
-
-
-@app.route("/api/summary")
-def api_summary():
-    metrics, summary, critical = load_analysis()
-    return jsonify({
-        "summary": summary,
-        "metrics": [
-            {
-                "name": m.name,
-                "q1": m.q1_value,
-                "q2": m.q2_value,
-                "unit": m.unit,
-                "absolute_change": m.absolute_change(),
-                "percentage_change": m.percentage_change(),
-                "trend": m.trend(),
-            }
-            for m in metrics
-        ],
-        "critical": [m.name for m in critical],
-        "insights": generate_insights(metrics)
-    })
-
-
-@app.route("/api/insights")
-def api_insights():
-    metrics, summary, critical = load_analysis()
-    return jsonify({"insights": generate_insights(metrics)})
-
-
-@app.route("/export/json")
-def export_json():
-    metrics, summary, critical = load_analysis()
-    output_dir = Path("output/reports")
-    output_dir.mkdir(exist_ok=True, parents=True)
-    report_path = output_dir / "novaflow_export.json"
-
-    payload = [
-        {
-            "name": m.name,
-            "q1": m.q1_value,
-            "q2": m.q2_value,
-            "unit": m.unit,
-            "absolute_change": m.absolute_change(),
-            "percentage_change": m.percentage_change(),
-            "trend": m.trend(),
-        }
-        for m in metrics
-    ]
-
-    with report_path.open("w", encoding="utf-8") as file:
-        import json
-        json.dump(payload, file, indent=2)
-
-    return send_file(report_path, as_attachment=True, download_name="novaflow_export.json")
-
-
-@app.route("/export/excel")
-def export_excel():
-    metrics, summary, critical = load_analysis()
-    output_dir = Path("output/reports")
-    output_dir.mkdir(exist_ok=True, parents=True)
-    report_path = output_dir / "novaflow_export.xlsx"
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "NovaFlow Metrics"
-    sheet.append(["Metric", "Q1", "Q2", "Absolute Change", "Percentage Change", "Trend"])
-
-    for metric in metrics:
-        sheet.append([
-            metric.name,
-            metric.q1_value,
-            metric.q2_value,
-            metric.absolute_change(),
-            metric.percentage_change(),
-            metric.trend(),
-        ])
-
-    workbook.save(report_path)
-    return send_file(report_path, as_attachment=True, download_name="novaflow_export.xlsx")
-
-
-@app.route("/health")
-def health_check():
-    return jsonify({"status": "ok", "service": "NovaFlow Insight Studio"})
-
-
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
-
-
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NovaFlow | Data dashboard</title>
+  <style>
+    :root{color-scheme:light;--ink:#15243a;--muted:#53657b;--line:#dce4ee;--blue:#1e4e8c;--bg:#f5f8fc}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1120px;margin:0 auto;padding:2rem 1rem 3rem}.hero,.panel,.card{background:white;border:1px solid var(--line);border-radius:14px}
+    .hero{padding:1.5rem 1.75rem;background:linear-gradient(120deg,#102a4c,#2364a5);color:white}
+    h1{margin:0;font-size:clamp(1.8rem,4vw,2.5rem)}.hero p{margin:.5rem 0 0;color:#e5efff}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem;margin:1rem 0}
+    .card,.panel{padding:1.15rem}.label{color:var(--muted);font-size:.83rem;text-transform:uppercase;letter-spacing:.05em}
+    .value{font-size:1.8rem;font-weight:700;margin-top:.35rem}.panel{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:.75rem;border-bottom:1px solid var(--line)}
+    th{color:var(--muted);font-size:.83rem;background:#f7f9fc}.badge{font-size:.8rem;font-weight:700}
+    .critical{margin:0;padding-left:1.25rem}.note{color:var(--muted);font-size:.9rem}
+    a{color:var(--blue);margin-right:1rem}
+    @media(max-width:600px){main{padding:1rem .65rem}.hero{padding:1.2rem}}
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <h1>NovaFlow</h1>
+    <p>Quarterly data validation and metric analysis</p>
+    <p class="note">Generated {{ generated_at }} · Direction shows arithmetic change; it does not imply business impact.</p>
+  </header>
+  <section class="cards" aria-label="Summary">
+    <article class="card"><div class="label">Metrics</div><div class="value">{{ summary.total_metrics }}</div></article>
+    <article class="card"><div class="label">Increased</div><div class="value">{{ summary.up_trends }}</div></article>
+    <article class="card"><div class="label">Decreased</div><div class="value">{{ summary.down_trends }}</div></article>
+    <article class="card"><div class="label">Average defined change</div><div class="value">{% if summary.avg_percentage_change is none %}N/A{% else %}{{ "%+.2f"|format(summary.avg_percentage_change) }}%{% endif %}</div></article>
+  </section>
+  <section class="panel">
+    <h2>Metrics</h2>
+    {% if metrics %}
+    <table>
+      <thead><tr><th>Metric</th><th>Q1</th><th>Q2</th><th>Change</th><th>Change %</th><th>Unit</th><th>Direction</th></tr></thead>
+      <tbody>
+      {% for metric in metrics %}
+        <tr>
+          <td>{{ metric.name }}</td><td>{{ "%.2f"|format(metric.q1_value) }}</td>
+          <td>{{ "%.2f"|format(metric.q2_value) }}</td><td>{{ "%+.2f"|format(metric.absolute_change()) }}</td>
+          <td>{% if metric.percentage_change() is none %}N/A{% else %}{{ "%+.2f"|format(metric.percentage_change()) }}%{% endif %}</td>
+          <td>{{ metric.unit }}</td><td><span class="badge">{{ metric.trend() }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p>No metrics are available in the dataset.</p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>Metrics crossing the alert threshold</h2>
+    {% if critical %}<ul class="critical">{% for metric in critical %}<li>{{ metric.name }}: {% if metric.percentage_change() is none %}N/A{% else %}{{ "%+.2f"|format(metric.percentage_change()) }}%{% endif %}</li>{% endfor %}</ul>
+    {% else %}<p>No defined percentage changes crossed the 10% absolute threshold.</p>{% endif %}
+  </section>
+  <nav class="panel" aria-label="Downloads">
+    <h2>Exports</h2><a href="{{ url_for('export_json') }}">Download JSON</a><a href="{{ url_for('export_excel') }}">Download Excel</a>
+    <a href="{{ url_for('api_summary') }}">View summary API</a>
+  </nav>
+</main>
+</body>
+</html>
