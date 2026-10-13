@@ -168,7 +168,7 @@ th{background:#f1f5fb}small{color:#526176}
                 .replace("<p>{} metrics · average defined percentage change: {}</p>",
                          "<p>{} metrics · average defined percentage change: {}</p>".format(
                              summary.get("total_metrics", 0), average_label))
-                .replace("<tbody>{}</tbody>", "<tbody>{}</tbody>".format("".join(rows)))
+                .replace("<tbody>{}</tbody>", "<tbody>{}</tbody>".format("".join(rows))))
 
     @staticmethod
     def export_dashboard(metrics: List[Metric], summary: Dict[str, Any], output_path: Path) -> None:
