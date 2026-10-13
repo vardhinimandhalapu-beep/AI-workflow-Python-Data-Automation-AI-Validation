@@ -164,12 +164,11 @@ th{background:#f1f5fb}small{color:#526176}
 <table><thead><tr><th>Metric</th><th>Q1</th><th>Q2</th><th>Change</th><th>Change %</th><th>Unit</th><th>Trend</th></tr></thead>
 <tbody>{}</tbody></table></section><small>Generated locally from the supplied CSV. Trend is arithmetic direction, not a judgment of business impact.</small>
 </body></html>"""
-        return (report.replace("{} metrics".format(summary.get("total_metrics", 0)), "__METRIC_COUNT__ metrics")
-                .replace(average_label, "__AVERAGE__")
-                .replace("{}".format("".join(rows)), "__ROWS__")
-                .replace("__METRIC_COUNT__", str(summary.get("total_metrics", 0)))
-                .replace("__AVERAGE__", average_label)
-                .replace("__ROWS__", "".join(rows)))
+        return (report
+                .replace("<p>{} metrics · average defined percentage change: {}</p>",
+                         "<p>{} metrics · average defined percentage change: {}</p>".format(
+                             summary.get("total_metrics", 0), average_label))
+                .replace("<tbody>{}</tbody>", "<tbody>{}</tbody>".format("".join(rows)))
 
     @staticmethod
     def export_dashboard(metrics: List[Metric], summary: Dict[str, Any], output_path: Path) -> None:
