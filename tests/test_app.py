@@ -55,7 +55,7 @@ def test_excel_export_neutralizes_formula_prefixes_in_names_and_units(tmp_path):
     with data.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         for index, prefix in enumerate(prefixes):
-            writer.writerow([prefix + "payload", index + 1, index + 2, prefix + "unit"])
+            writer.writerow([prefix + str(index) + "payload", index + 1, index + 2, prefix + str(index) + "unit"])
 
     flask_app.app.config.update(TESTING=True, DATASET_PATH=data)
     response = flask_app.app.test_client().get("/export/excel")
