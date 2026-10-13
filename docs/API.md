@@ -1,70 +1,35 @@
-# API Reference
+# API and core usage
 
-## Core Classes
+NovaFlow exposes a small Python API and local Flask routes. The authoritative implementation is `src/main.py`.
 
-### Metric
-
-Represents a single quarterly business metric.
+## Python classes
 
 ```python
-from src.main import Metric
+from pathlib import Path
+from src.main import App, DataAnalyzer, DataValidator, Metric
 
-metric = Metric(
-    name="users",
-    q1_value=82400,
-    q2_value=101600,
-    unit="users"
-)
-
-# Calculate changes
-abs_change = metric.absolute_change()      # 19200
-pct_change = metric.percentage_change()    # 23.29
-trend = metric.trend()                     # "UP"
-```
-
-### DataValidator
-
-Validates CSV datasets.
-
-```python
-from src.main import DataValidator
+metric = Metric("users", 82400, 101600, "users")
+print(metric.absolute_change())   # 19200
+print(metric.percentage_change()) # about 23.30
+print(metric.trend())             # UP (direction only)
 
 rows = DataValidator.load_csv(Path("data/metrics.csv"))
 valid, errors = DataValidator.validate_dataset(rows)
-```
-
-### DataAnalyzer
-
-Analyzes metrics and generates insights.
-
-```python
-from src.main import DataAnalyzer
-
+if not valid:
+    raise ValueError("\n".join(errors))
 metrics = DataAnalyzer.load_metrics(rows)
 summary = DataAnalyzer.calculate_summary(metrics)
-critical = DataAnalyzer.identify_critical_metrics(metrics)
+alerts = DataAnalyzer.identify_critical_metrics(metrics, threshold_pct=10.0)
 ```
 
-### ReportGenerator
+A zero Q1 baseline has no defined percentage change and is excluded from the average. The default alert threshold uses absolute percentage magnitude. Trend labels do not infer business impact.
 
-Generates HTML dashboards.
+## Flask routes
 
-```python
-from src.main import ReportGenerator
+- `GET /` — renders the dashboard.
+- `GET /api/summary` — returns a JSON object containing `summary`, `metrics`, and `critical`.
+- `GET /export/json` — downloads summary, metric values, and alerts as JSON.
+- `GET /export/excel` — downloads an Excel workbook.
+- `GET /health` — returns a local service status.
 
-html = ReportGenerator.build_dashboard(metrics, summary)
-ReportGenerator.export_dashboard(metrics, summary, Path("output.html"))
-```
-
-### App
-
-Main application controller.
-
-```python
-from src.main import App
-
-app = App()
-app.run()  # Run complete workflow
-reports = app.generate_reports(Path("data/metrics.csv"))
-app.serve_report(Path("output/report.html"))
-```
+The web app reads the path in `app.config["DATASET_PATH"]`, defaulting to `data/metrics.csv` at the repository root. Missing files return 404; invalid CSV data returns 400.
