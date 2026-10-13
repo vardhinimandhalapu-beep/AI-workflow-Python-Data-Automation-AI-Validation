@@ -9,7 +9,8 @@ from openpyxl import Workbook
 
 from datetime import datetime
 
-from src.ai_insights import AIInsightError, generate_ai_insight, is_ai_enabled\nfrom src.main import DataAnalyzer, DataValidator
+from src.ai_insights import AIInsightError, generate_ai_insight, is_ai_enabled
+from src.main import DataAnalyzer, DataValidator
 
 PROJECT_DIR = Path(__file__).resolve().parent
 app = Flask(
