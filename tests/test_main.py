@@ -57,3 +57,68 @@ def test_sample_pipeline_generates_readable_reports(tmp_path):
     assert analysis["summary"]["total_metrics"] == 6
     assert json.loads(open(reports["json"], encoding="utf-8").read())[0]["name"] == "users"
     assert "<!doctype html>" in open(reports["html"], encoding="utf-8").read().lower()
+
+
+def test_blank_duplicate_and_malformed_headers_are_rejected(tmp_path):
+    cases = [
+        ("blank.csv", "metric,q1,q2,unit,\\nusers,1,2,people,x\\n", "blank column"),
+        ("duplicate.csv", "metric,q1,q2,unit,unit\\nusers,1,2,people,people\\n", "duplicate column"),
+        ("malformed.csv", 'metric,q1,q2,unit\\n"users,1,2,people\\n', "Malformed CSV"),
+    ]
+    for filename, content, message in cases:
+        path = tmp_path / filename
+        path.write_text(content, encoding="utf-8")
+        with pytest.raises(ValueError, match=message):
+            DataValidator.load_csv(path)
+
+
+def test_empty_header_only_and_invalid_encoding_are_rejected(tmp_path):
+    empty = tmp_path / "empty.csv"
+    empty.write_bytes(b"")
+    assert DataValidator.load_csv(empty) == []
+    header_only = tmp_path / "header.csv"
+    header_only.write_text("metric,q1,q2,unit\\n", encoding="utf-8")
+    rows = DataValidator.load_csv(header_only)
+    assert DataValidator.validate_dataset(rows)[0] is False
+    invalid = tmp_path / "encoding.csv"
+    invalid.write_bytes(b"metric,q1,q2,unit\\nusers,1,2,pe\\xffple\\n")
+    with pytest.raises(ValueError, match="UTF-8"):
+        DataValidator.load_csv(invalid)
+
+
+def test_short_and_extra_rows_are_reported(tmp_path):
+    short = tmp_path / "short.csv"
+    short.write_text("metric,q1,q2,unit\\nusers,1,,people\\n", encoding="utf-8")
+    rows = DataValidator.load_csv(short)
+    valid, errors = DataValidator.validate_dataset(rows)
+    assert not valid
+    assert any("q2 is blank" in error for error in errors)
+
+    extra = tmp_path / "extra.csv"
+    extra.write_text("metric,q1,q2,unit\\nusers,1,2,people,extra\\n", encoding="utf-8")
+    rows = DataValidator.load_csv(extra)
+    valid, errors = DataValidator.validate_dataset(rows)
+    assert not valid
+    assert any("more values than the header" in error for error in errors)
+
+
+def test_csv_size_limit_accepts_exact_boundary_and_rejects_one_byte_over(tmp_path):
+    path = tmp_path / "boundary.csv"
+    prefix = b"metric,q1,q2,unit,note\\nusers,1,2,people,"
+    suffix = b"\\n"
+    padding_size = DataValidator.MAX_FILE_BYTES - len(prefix) - len(suffix)
+    path.write_bytes(prefix + b"a" * padding_size + suffix)
+    rows = DataValidator.load_csv(path)
+    assert len(rows) == 1
+    assert DataValidator.validate_dataset(rows)[0]
+
+    path.write_bytes(prefix + b"a" * (padding_size + 1) + suffix)
+    with pytest.raises(ValueError, match="10 MiB"):
+        DataValidator.load_csv(path)
+
+
+def test_negative_values_have_arithmetic_change_and_direction():
+    metric = Metric("balance", -10, -15, "units")
+    assert metric.absolute_change() == -5
+    assert metric.percentage_change() == 50
+    assert metric.trend() == "DOWN"
