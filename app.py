@@ -7,7 +7,9 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 from openpyxl import Workbook
 
-from datetime import datetime\n\nfrom src.ai_insights import AIInsightError, generate_ai_insight, is_ai_enabled\nfrom src.main import DataAnalyzer, DataValidator
+from datetime import datetime
+
+from src.ai_insights import AIInsightError, generate_ai_insight, is_ai_enabled\nfrom src.main import DataAnalyzer, DataValidator
 
 PROJECT_DIR = Path(__file__).resolve().parent
 app = Flask(
@@ -67,7 +69,8 @@ def dashboard():
         metrics=metrics,
         summary=summary,
         critical=critical,
-        generated_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),\n        ai_enabled=is_ai_enabled(),
+        generated_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
+        ai_enabled=is_ai_enabled(),
     )
 
 
@@ -101,17 +104,38 @@ def export_excel():
     sheet.title = "NovaFlow Metrics"
     sheet.append(["Metric", "Q1", "Q2", "Absolute Change", "Percentage Change", "Unit", "Trend"])
     for metric in metrics:
-        # Prevent untrusted metric labels from becoming spreadsheet formulas.
-        name = metric.name
-        if name.startswith(("=", "+", "-", "@", "\t", "\r")):
-            name = "'" + name
-        sheet.append([name, metric.q1_value, metric.q2_value, metric.absolute_change(),
-                      metric.percentage_change(), metric.unit, metric.trend()])
+        # Guard both untrusted text columns against spreadsheet formulas.
+        sheet.append([_safe_spreadsheet_text(metric.name), metric.q1_value, metric.q2_value,
+                      metric.absolute_change(), metric.percentage_change(),
+                      _safe_spreadsheet_text(metric.unit), metric.trend()])
     stream = BytesIO()
     workbook.save(stream)
     stream.seek(0)
     return send_file(stream, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                      as_attachment=True, download_name="novaflow_export.xlsx")
+
+
+@app.route("/api/ai-insights", methods=["POST"])
+def api_ai_insights():
+    """Make an explicit, user-triggered request for an AI explanation."""
+    if not is_ai_enabled():
+        return jsonify({"error": "AI insights are disabled. Enable them in local configuration."}), 503
+    if not request.is_json or request.get_json(silent=True) != {"confirm": True}:
+        return jsonify({"error": "Confirm the AI data-sharing request using JSON."}), 400
+    try:
+        metrics, summary, critical = load_analysis()
+        insight = generate_ai_insight(metrics)
+    except AIInsightError as error:
+        return jsonify({"error": str(error)}), 503
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    return jsonify({
+        "insight": insight,
+        "generated_by": "AI",
+        "notice": "AI-generated interpretation; verify it against the measured values.",
+    })
 
 
 @app.route("/health")
