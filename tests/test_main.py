@@ -81,7 +81,7 @@ def test_empty_header_only_and_invalid_encoding_are_rejected(tmp_path):
     rows = DataValidator.load_csv(header_only)
     assert DataValidator.validate_dataset(rows)[0] is False
     invalid = tmp_path / "encoding.csv"
-    invalid.write_bytes(b"metric,q1,q2,unit\nusers,1,2,pe\\xffple\n")
+    invalid.write_bytes(b"metric,q1,q2,unit\nusers,1,2,pe\xffple\n")
     with pytest.raises(ValueError, match="UTF-8"):
         DataValidator.load_csv(invalid)
 
@@ -111,7 +111,7 @@ def test_csv_size_limit_accepts_exact_boundary_and_rejects_one_byte_over(tmp_pat
     assert len(rows) == 1
     assert DataValidator.validate_dataset(rows)[0]
 
-    path.write_bytes(prefix + b"\\n" * (padding_size + 1))
+    path.write_bytes(prefix + b"x")
     with pytest.raises(ValueError, match="10 MiB"):
         DataValidator.load_csv(path)
 
